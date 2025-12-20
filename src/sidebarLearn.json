@@ -222,15 +222,15 @@
           "path": "/learn/lifecycle-of-reactive-effects"
         },
         {
-          "title": "Separating Events from Effects",
+          "title": "Effect থেকে Event আলাদা করা",
           "path": "/learn/separating-events-from-effects"
         },
         {
-          "title": "Removing Effect Dependencies",
+          "title": "Effect Dependency সরানো",
           "path": "/learn/removing-effect-dependencies"
         },
         {
-          "title": "Reusing Logic with Custom Hooks",
+          "title": "Custom Hook দিয়ে লজিক পুনরায় ব্যবহার করা",
           "path": "/learn/reusing-logic-with-custom-hooks"
         }
       ]

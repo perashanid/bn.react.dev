@@ -1,37 +1,38 @@
 ---
-title: 'Separating Events from Effects'
+title: 'Effect থেকে Event আলাদা করা'
 ---
 
 <Intro>
 
-Event handlers only re-run when you perform the same interaction again. Unlike event handlers, Effects re-synchronize if some value they read, like a prop or a state variable, is different from what it was during the last render. Sometimes, you also want a mix of both behaviors: an Effect that re-runs in response to some values but not others. This page will teach you how to do that.
+Event handler শুধুমাত্র তখনই পুনরায় চালু হয় যখন আপনি একই interaction আবার সম্পাদন করেন। Event handler এর বিপরীতে, Effect পুনরায় সিঙ্ক্রোনাইজ হয় যদি তারা যে কোনো মান পড়ে, যেমন একটি prop বা একটি state variable, শেষ render এর সময় যা ছিল তার থেকে ভিন্ন হয়। কখনও কখনও, আপনি উভয় আচরণের মিশ্রণও চান: একটি Effect যা কিছু মানের প্রতিক্রিয়ায় পুনরায় চালু হয় কিন্তু অন্যদের জন্য নয়। এই পৃষ্ঠাটি আপনাকে শেখাবে কিভাবে এটি করতে হয়।
 
 </Intro>
 
 <YouWillLearn>
 
-- How to choose between an event handler and an Effect
-- Why Effects are reactive, and event handlers are not
-- What to do when you want a part of your Effect's code to not be reactive
-- What Effect Events are, and how to extract them from your Effects
-- How to read the latest props and state from Effects using Effect Events
+- কিভাবে একটি event handler এবং একটি Effect এর মধ্যে বেছে নিতে হয়
+- কেন Effect reactive, এবং event handler reactive নয়
+- আপনার Effect এর কোডের একটি অংশ reactive না হতে চাইলে কি করতে হবে
+- Effect Event কি, এবং কিভাবে আপনার Effect থেকে সেগুলি extract করতে হয়
+- কিভাবে Effect Event ব্যবহার করে Effect থেকে সর্বশেষ props এবং state পড়তে হয়
 
 </YouWillLearn>
 
-## Choosing between event handlers and Effects {/*choosing-between-event-handlers-and-effects*/}
+## Event handler এবং Effect এর মধ্যে বেছে নেওয়া {/*choosing-between-event-handlers-and-effects*/}
 
-First, let's recap the difference between event handlers and Effects.
+প্রথমে, আসুন event handler এবং Effect এর মধ্যে পার্থক্য পুনরায় দেখি।
 
-Imagine you're implementing a chat room component. Your requirements look like this:
+কল্পনা করুন আপনি একটি chat room কম্পোনেন্ট implement করছেন। আপনার requirements এরকম দেখাচ্ছে:
 
-1. Your component should automatically connect to the selected chat room.
-1. When you click the "Send" button, it should send a message to the chat.
+1. আপনার কম্পোনেন্ট স্বয়ংক্রিয়ভাবে নির্বাচিত chat room এ সংযুক্ত হওয়া উচিত।
+1. যখন আপনি "Send" button এ ক্লিক করেন, তখন এটি chat এ একটি message পাঠানো উচিত।
 
-Let's say you've already implemented the code for them, but you're not sure where to put it. Should you use event handlers or Effects? Every time you need to answer this question, consider [*why* the code needs to run.](/learn/synchronizing-with-effects#what-are-effects-and-how-are-they-different-from-events)
+ধরা যাক আপনি ইতিমধ্যে তাদের জন্য কোড implement করেছেন, কিন্তু আপনি নিশ্চিত নন কোথায় এটি রাখবেন। আপনার কি event handler ব্যবহার করা উচিত নাকি Effect? প্রতিবার যখন আপনাকে এই প্রশ্নের উত্তর দিতে হবে, বিবেচনা করুন [*কেন* কোডটি চালানো প্রয়োজন।](/learn/synchronizing-with-effects#what-are-effects-and-how-are-they-different-from-events)
 
-### Event handlers run in response to specific interactions {/*event-handlers-run-in-response-to-specific-interactions*/}
+### Event handler নির্দিষ্ট interaction এর প্রতিক্রিয়ায় চালু হয় {/*event-handlers-run-in-response-to-specific-interactions*/}
 
-From the user's perspective, sending a message should happen *because* the particular "Send" button was clicked. The user will get rather upset if you send their message at any other time or for any other reason. This is why sending a message should be an event handler. Event handlers let you handle specific interactions:
+ব্যবহারকারীর দৃষ্টিকোণ থেকে, একটি message পাঠানো উচিত *কারণ* নির্দিষ্ট "Send" button ক্লিক করা হয়েছিল। ব্যবহারকারী বেশ বিরক্ত হবেন যদি আপনি তাদের message অন্য কোনো সময়ে বা অন্য কোনো কারণে পাঠান। এই কারণেই একটি message পাঠানো একটি event handler হওয়া উচিত। Event handler আপনাকে নির্দিষ্ট interaction handle করতে দেয়:
+
 
 ```js {4-6}
 function ChatRoom({ roomId }) {
@@ -50,13 +51,13 @@ function ChatRoom({ roomId }) {
 }
 ```
 
-With an event handler, you can be sure that `sendMessage(message)` will *only* run if the user presses the button.
+একটি event handler এর সাথে, আপনি নিশ্চিত হতে পারেন যে `sendMessage(message)` *শুধুমাত্র* তখনই চালু হবে যদি ব্যবহারকারী button টি চাপেন।
 
-### Effects run whenever synchronization is needed {/*effects-run-whenever-synchronization-is-needed*/}
+### Effect যখনই synchronization প্রয়োজন তখন চালু হয় {/*effects-run-whenever-synchronization-is-needed*/}
 
-Recall that you also need to keep the component connected to the chat room. Where does that code go?
+মনে করুন আপনাকে কম্পোনেন্টটিকে chat room এর সাথে সংযুক্ত রাখতে হবে। সেই কোডটি কোথায় যায়?
 
-The *reason* to run this code is not some particular interaction. It doesn't matter why or how the user navigated to the chat room screen. Now that they're looking at it and could interact with it, the component needs to stay connected to the selected chat server. Even if the chat room component was the initial screen of your app, and the user has not performed any interactions at all, you would *still* need to connect. This is why it's an Effect:
+এই কোডটি চালানোর *কারণ* কোনো নির্দিষ্ট interaction নয়। ব্যবহারকারী কেন বা কিভাবে chat room screen এ navigate করেছে তা কোনো ব্যাপার না। এখন যেহেতু তারা এটি দেখছে এবং এটির সাথে interact করতে পারে, কম্পোনেন্টটিকে নির্বাচিত chat server এর সাথে সংযুক্ত থাকতে হবে। এমনকি যদি chat room কম্পোনেন্ট আপনার app এর প্রাথমিক screen হয়, এবং ব্যবহারকারী কোনো interaction সম্পাদন না করে থাকে, তবুও আপনাকে *এখনও* সংযুক্ত হতে হবে। এই কারণেই এটি একটি Effect:
 
 ```js {3-9}
 function ChatRoom({ roomId }) {
@@ -72,7 +73,8 @@ function ChatRoom({ roomId }) {
 }
 ```
 
-With this code, you can be sure that there is always an active connection to the currently selected chat server, *regardless* of the specific interactions performed by the user. Whether the user has only opened your app, selected a different room, or navigated to another screen and back, your Effect ensures that the component will *remain synchronized* with the currently selected room, and will [re-connect whenever it's necessary.](/learn/lifecycle-of-reactive-effects#why-synchronization-may-need-to-happen-more-than-once)
+এই কোডের সাথে, আপনি নিশ্চিত হতে পারেন যে বর্তমানে নির্বাচিত chat server এর সাথে সর্বদা একটি সক্রিয় connection আছে, *নির্বিশেষে* ব্যবহারকারী দ্বারা সম্পাদিত নির্দিষ্ট interaction এর। ব্যবহারকারী শুধুমাত্র আপনার app খুলেছে, একটি ভিন্ন room নির্বাচন করেছে, বা অন্য screen এ navigate করেছে এবং ফিরে এসেছে, আপনার Effect নিশ্চিত করে যে কম্পোনেন্টটি বর্তমানে নির্বাচিত room এর সাথে *সিঙ্ক্রোনাইজড থাকবে*, এবং [যখনই এটি প্রয়োজন তখন পুনরায় সংযুক্ত হবে।](/learn/lifecycle-of-reactive-effects#why-synchronization-may-need-to-happen-more-than-once)
+
 
 <Sandpack>
 
@@ -154,13 +156,13 @@ input, select { margin-right: 20px; }
 
 </Sandpack>
 
-## Reactive values and reactive logic {/*reactive-values-and-reactive-logic*/}
+## Reactive value এবং reactive logic {/*reactive-values-and-reactive-logic*/}
 
-Intuitively, you could say that event handlers are always triggered "manually", for example by clicking a button. Effects, on the other hand, are "automatic": they run and re-run as often as it's needed to stay synchronized.
+স্বজ্ঞাতভাবে, আপনি বলতে পারেন যে event handler সর্বদা "manually" trigger হয়, উদাহরণস্বরূপ একটি button ক্লিক করে। অন্যদিকে Effect, "automatic": তারা চালু হয় এবং পুনরায় চালু হয় যতবার সিঙ্ক্রোনাইজড থাকার প্রয়োজন হয়।
 
-There is a more precise way to think about this.
+এটি সম্পর্কে চিন্তা করার আরও সুনির্দিষ্ট উপায় আছে।
 
-Props, state, and variables declared inside your component's body are called <CodeStep step={2}>reactive values</CodeStep>. In this example, `serverUrl` is not a reactive value, but `roomId` and `message` are. They participate in the rendering data flow:
+আপনার কম্পোনেন্টের body এর ভিতরে ঘোষিত Props, state, এবং variable গুলিকে <CodeStep step={2}>reactive value</CodeStep> বলা হয়। এই উদাহরণে, `serverUrl` একটি reactive value নয়, কিন্তু `roomId` এবং `message` হল। তারা rendering data flow এ অংশগ্রহণ করে:
 
 ```js [[2, 3, "roomId"], [2, 4, "message"]]
 const serverUrl = 'https://localhost:1234';
@@ -172,16 +174,17 @@ function ChatRoom({ roomId }) {
 }
 ```
 
-Reactive values like these can change due to a re-render. For example, the user may edit the `message` or choose a different `roomId` in a dropdown. Event handlers and Effects respond to changes differently:
+এই ধরনের reactive value একটি re-render এর কারণে পরিবর্তিত হতে পারে। উদাহরণস্বরূপ, ব্যবহারকারী `message` edit করতে পারে বা একটি dropdown এ একটি ভিন্ন `roomId` বেছে নিতে পারে। Event handler এবং Effect পরিবর্তনের প্রতি ভিন্নভাবে প্রতিক্রিয়া জানায়:
 
-- **Logic inside event handlers is *not reactive.*** It will not run again unless the user performs the same interaction (e.g. a click) again. Event handlers can read reactive values without "reacting" to their changes.
-- **Logic inside Effects is *reactive.*** If your Effect reads a reactive value, [you have to specify it as a dependency.](/learn/lifecycle-of-reactive-effects#effects-react-to-reactive-values) Then, if a re-render causes that value to change, React will re-run your Effect's logic with the new value.
+- **Event handler এর ভিতরের logic *reactive নয়।*** এটি আবার চালু হবে না যদি না ব্যবহারকারী একই interaction (যেমন একটি click) আবার সম্পাদন করে। Event handler reactive value পড়তে পারে তাদের পরিবর্তনের প্রতি "react" না করে।
+- **Effect এর ভিতরের logic *reactive।*** যদি আপনার Effect একটি reactive value পড়ে, [আপনাকে এটি একটি dependency হিসাবে নির্দিষ্ট করতে হবে।](/learn/lifecycle-of-reactive-effects#effects-react-to-reactive-values) তারপর, যদি একটি re-render সেই মানটি পরিবর্তন করে, React নতুন মান দিয়ে আপনার Effect এর logic পুনরায় চালু করবে।
 
-Let's revisit the previous example to illustrate this difference.
+আসুন এই পার্থক্যটি চিত্রিত করতে আগের উদাহরণটি পুনরায় দেখি।
 
-### Logic inside event handlers is not reactive {/*logic-inside-event-handlers-is-not-reactive*/}
 
-Take a look at this line of code. Should this logic be reactive or not?
+### Event handler এর ভিতরের logic reactive নয় {/*logic-inside-event-handlers-is-not-reactive*/}
+
+কোডের এই লাইনটি দেখুন। এই logic কি reactive হওয়া উচিত নাকি নয়?
 
 ```js [[2, 2, "message"]]
     // ...
@@ -189,7 +192,7 @@ Take a look at this line of code. Should this logic be reactive or not?
     // ...
 ```
 
-From the user's perspective, **a change to the `message` does _not_ mean that they want to send a message.** It only means that the user is typing. In other words, the logic that sends a message should not be reactive. It should not run again only because the <CodeStep step={2}>reactive value</CodeStep> has changed. That's why it belongs in the event handler:
+ব্যবহারকারীর দৃষ্টিকোণ থেকে, **`message` এ একটি পরিবর্তন _মানে এই নয়_ যে তারা একটি message পাঠাতে চায়।** এর মানে শুধুমাত্র এই যে ব্যবহারকারী টাইপ করছে। অন্য কথায়, যে logic একটি message পাঠায় তা reactive হওয়া উচিত নয়। এটি শুধুমাত্র <CodeStep step={2}>reactive value</CodeStep> পরিবর্তিত হওয়ার কারণে আবার চালু হওয়া উচিত নয়। এই কারণেই এটি event handler এ থাকে:
 
 ```js {2}
   function handleSendClick() {
@@ -197,11 +200,11 @@ From the user's perspective, **a change to the `message` does _not_ mean that th
   }
 ```
 
-Event handlers aren't reactive, so `sendMessage(message)` will only run when the user clicks the Send button.
+Event handler reactive নয়, তাই `sendMessage(message)` শুধুমাত্র তখনই চালু হবে যখন ব্যবহারকারী Send button চাপবে।
 
-### Logic inside Effects is reactive {/*logic-inside-effects-is-reactive*/}
+### Effect এর ভিতরের logic reactive {/*logic-inside-effects-is-reactive*/}
 
-Now let's return to these lines:
+এখন আসুন এই লাইনগুলিতে ফিরে যাই:
 
 ```js [[2, 2, "roomId"]]
     // ...
@@ -210,7 +213,7 @@ Now let's return to these lines:
     // ...
 ```
 
-From the user's perspective, **a change to the `roomId` *does* mean that they want to connect to a different room.** In other words, the logic for connecting to the room should be reactive. You *want* these lines of code to "keep up" with the <CodeStep step={2}>reactive value</CodeStep>, and to run again if that value is different. That's why it belongs in an Effect:
+ব্যবহারকারীর দৃষ্টিকোণ থেকে, **`roomId` এ একটি পরিবর্তন *মানে* যে তারা একটি ভিন্ন room এ সংযুক্ত হতে চায়।** অন্য কথায়, room এ সংযুক্ত হওয়ার logic reactive হওয়া উচিত। আপনি *চান* যে কোডের এই লাইনগুলি <CodeStep step={2}>reactive value</CodeStep> এর সাথে "keep up" করুক, এবং সেই মান ভিন্ন হলে আবার চালু হোক। এই কারণেই এটি একটি Effect এ থাকে:
 
 ```js {2-3}
   useEffect(() => {
@@ -222,13 +225,13 @@ From the user's perspective, **a change to the `roomId` *does* mean that they wa
   }, [roomId]);
 ```
 
-Effects are reactive, so `createConnection(serverUrl, roomId)` and `connection.connect()` will run for every distinct value of `roomId`. Your Effect keeps the chat connection synchronized to the currently selected room.
+Effect reactive, তাই `createConnection(serverUrl, roomId)` এবং `connection.connect()` `roomId` এর প্রতিটি স্বতন্ত্র মানের জন্য চালু হবে। আপনার Effect chat connection টিকে বর্তমানে নির্বাচিত room এর সাথে সিঙ্ক্রোনাইজড রাখে।
 
-## Extracting non-reactive logic out of Effects {/*extracting-non-reactive-logic-out-of-effects*/}
+## Effect থেকে non-reactive logic বের করা {/*extracting-non-reactive-logic-out-of-effects*/}
 
-Things get more tricky when you want to mix reactive logic with non-reactive logic.
+যখন আপনি reactive logic এর সাথে non-reactive logic মিশ্রিত করতে চান তখন জিনিসগুলি আরও জটিল হয়ে যায়।
 
-For example, imagine that you want to show a notification when the user connects to the chat. You read the current theme (dark or light) from the props so that you can show the notification in the correct color:
+উদাহরণস্বরূপ, কল্পনা করুন যে আপনি ব্যবহারকারী chat এ সংযুক্ত হলে একটি notification দেখাতে চান। আপনি props থেকে বর্তমান theme (dark বা light) পড়েন যাতে আপনি সঠিক রঙে notification দেখাতে পারেন:
 
 ```js {1,4-6}
 function ChatRoom({ roomId, theme }) {
@@ -241,7 +244,7 @@ function ChatRoom({ roomId, theme }) {
     // ...
 ```
 
-However, `theme` is a reactive value (it can change as a result of re-rendering), and [every reactive value read by an Effect must be declared as its dependency.](/learn/lifecycle-of-reactive-effects#react-verifies-that-you-specified-every-reactive-value-as-a-dependency) Now you have to specify `theme` as a dependency of your Effect:
+তবে, `theme` একটি reactive value (এটি re-rendering এর ফলে পরিবর্তিত হতে পারে), এবং [একটি Effect দ্বারা পড়া প্রতিটি reactive value অবশ্যই তার dependency হিসাবে ডিক্লেয়ার করতে হবে।](/learn/lifecycle-of-reactive-effects#react-verifies-that-you-specified-every-reactive-value-as-a-dependency) এখন আপনাকে আপনার Effect এর dependency হিসাবে `theme` নির্দিষ্ট করতে হবে:
 
 ```js {5,11}
 function ChatRoom({ roomId, theme }) {
@@ -254,11 +257,12 @@ function ChatRoom({ roomId, theme }) {
     return () => {
       connection.disconnect()
     };
-  }, [roomId, theme]); // ✅ All dependencies declared
+  }, [roomId, theme]); // ✅ সমস্ত dependency ডিক্লেয়ার করা হয়েছে
   // ...
 ```
 
-Play with this example and see if you can spot the problem with this user experience:
+এই উদাহরণটি নিয়ে খেলুন এবং দেখুন আপনি কি এই user experience এর সমস্যাটি খুঁজে পেতে পারেন:
+
 
 <Sandpack>
 
@@ -386,9 +390,9 @@ label { display: block; margin-top: 10px; }
 
 </Sandpack>
 
-When the `roomId` changes, the chat re-connects as you would expect. But since `theme` is also a dependency, the chat *also* re-connects every time you switch between the dark and the light theme. That's not great!
+যখন `roomId` পরিবর্তিত হয়, chat আপনার প্রত্যাশা অনুযায়ী পুনরায় সংযুক্ত হয়। কিন্তু যেহেতু `theme` ও একটি dependency, chat *এছাড়াও* প্রতিবার পুনরায় সংযুক্ত হয় যখন আপনি dark এবং light theme এর মধ্যে switch করেন। এটা ভালো নয়!
 
-In other words, you *don't* want this line to be reactive, even though it is inside an Effect (which is reactive):
+অন্য কথায়, আপনি *চান না* যে এই লাইনটি reactive হোক, যদিও এটি একটি Effect এর ভিতরে আছে (যা reactive):
 
 ```js
       // ...
@@ -396,17 +400,17 @@ In other words, you *don't* want this line to be reactive, even though it is ins
       // ...
 ```
 
-You need a way to separate this non-reactive logic from the reactive Effect around it.
+আপনার এই non-reactive logic কে এর চারপাশের reactive Effect থেকে আলাদা করার একটি উপায় প্রয়োজন।
 
-### Declaring an Effect Event {/*declaring-an-effect-event*/}
+### একটি Effect Event ডিক্লেয়ার করা {/*declaring-an-effect-event*/}
 
 <Wip>
 
-This section describes an **experimental API that has not yet been released** in a stable version of React.
+এই অনুচ্ছেদটি একটি **experimental API বর্ণনা করে যা এখনও React এর একটি stable version এ release হয়নি।**
 
 </Wip>
 
-Use a special Hook called [`useEffectEvent`](/reference/react/experimental_useEffectEvent) to extract this non-reactive logic out of your Effect:
+[`useEffectEvent`](/reference/react/experimental_useEffectEvent) নামক একটি বিশেষ Hook ব্যবহার করুন আপনার Effect থেকে এই non-reactive logic বের করতে:
 
 ```js {1,4-6}
 import { useEffect, useEffectEvent } from 'react';
@@ -418,9 +422,10 @@ function ChatRoom({ roomId, theme }) {
   // ...
 ```
 
-Here, `onConnected` is called an *Effect Event.* It's a part of your Effect logic, but it behaves a lot more like an event handler. The logic inside it is not reactive, and it always "sees" the latest values of your props and state.
+এখানে, `onConnected` কে একটি *Effect Event* বলা হয়। এটি আপনার Effect logic এর একটি অংশ, কিন্তু এটি একটি event handler এর মতো অনেক বেশি আচরণ করে। এর ভিতরের logic reactive নয়, এবং এটি সর্বদা আপনার props এবং state এর সর্বশেষ মান "দেখে"।
 
-Now you can call the `onConnected` Effect Event from inside your Effect:
+এখন আপনি আপনার Effect এর ভিতর থেকে `onConnected` Effect Event কল করতে পারেন:
+
 
 ```js {2-4,9,13}
 function ChatRoom({ roomId, theme }) {
@@ -435,13 +440,13 @@ function ChatRoom({ roomId, theme }) {
     });
     connection.connect();
     return () => connection.disconnect();
-  }, [roomId]); // ✅ All dependencies declared
+  }, [roomId]); // ✅ সমস্ত dependency ডিক্লেয়ার করা হয়েছে
   // ...
 ```
 
-This solves the problem. Note that you had to *remove* `theme` from the list of your Effect's dependencies, because it's no longer used in the Effect. You also don't need to *add* `onConnected` to it, because **Effect Events are not reactive and must be omitted from dependencies.**
+এটি সমস্যার সমাধান করে। লক্ষ্য করুন যে আপনাকে আপনার Effect এর dependency এর তালিকা থেকে `theme` *সরাতে* হয়েছিল, কারণ এটি আর Effect এ ব্যবহৃত হচ্ছে না। আপনাকে এটিতে `onConnected` *যোগ* করারও প্রয়োজন নেই, কারণ **Effect Event reactive নয় এবং dependency থেকে বাদ দিতে হবে।**
 
-Verify that the new behavior works as you would expect:
+যাচাই করুন যে নতুন আচরণটি আপনার প্রত্যাশা অনুযায়ী কাজ করে:
 
 <Sandpack>
 
@@ -574,19 +579,19 @@ label { display: block; margin-top: 10px; }
 
 </Sandpack>
 
-You can think of Effect Events as being very similar to event handlers. The main difference is that event handlers run in response to a user interactions, whereas Effect Events are triggered by you from Effects. Effect Events let you "break the chain" between the reactivity of Effects and code that should not be reactive.
+আপনি Effect Event কে event handler এর খুব অনুরূপ হিসাবে ভাবতে পারেন। প্রধান পার্থক্য হল যে event handler user interaction এর প্রতিক্রিয়ায় চালু হয়, যেখানে Effect Event আপনার দ্বারা Effect থেকে trigger করা হয়। Effect Event আপনাকে Effect এর reactivity এবং যে কোড reactive হওয়া উচিত নয় তার মধ্যে "chain ভাঙতে" দেয়।
 
-### Reading latest props and state with Effect Events {/*reading-latest-props-and-state-with-effect-events*/}
+### Effect Event দিয়ে সর্বশেষ props এবং state পড়া {/*reading-latest-props-and-state-with-effect-events*/}
 
 <Wip>
 
-This section describes an **experimental API that has not yet been released** in a stable version of React.
+এই অনুচ্ছেদটি একটি **experimental API বর্ণনা করে যা এখনও React এর একটি stable version এ release হয়নি।**
 
 </Wip>
 
-Effect Events let you fix many patterns where you might be tempted to suppress the dependency linter.
+Effect Event আপনাকে অনেক pattern ঠিক করতে দেয় যেখানে আপনি dependency linter suppress করতে প্রলুব্ধ হতে পারেন।
 
-For example, say you have an Effect to log the page visits:
+উদাহরণস্বরূপ, ধরুন আপনার একটি Effect আছে page visit log করার জন্য:
 
 ```js
 function Page() {
@@ -597,7 +602,7 @@ function Page() {
 }
 ```
 
-Later, you add multiple routes to your site. Now your `Page` component receives a `url` prop with the current path. You want to pass the `url` as a part of your `logVisit` call, but the dependency linter complains:
+পরে, আপনি আপনার site এ একাধিক route যোগ করেন। এখন আপনার `Page` কম্পোনেন্ট বর্তমান path সহ একটি `url` prop পায়। আপনি আপনার `logVisit` call এর অংশ হিসাবে `url` pass করতে চান, কিন্তু dependency linter অভিযোগ করে:
 
 ```js {1,3}
 function Page({ url }) {
@@ -608,18 +613,19 @@ function Page({ url }) {
 }
 ```
 
-Think about what you want the code to do. You *want* to log a separate visit for different URLs since each URL represents a different page. In other words, this `logVisit` call *should* be reactive with respect to the `url`. This is why, in this case, it makes sense to follow the dependency linter, and add `url` as a dependency:
+কোডটি কি করতে চায় তা নিয়ে চিন্তা করুন। আপনি বিভিন্ন URL এর জন্য একটি পৃথক visit log করতে *চান* কারণ প্রতিটি URL একটি ভিন্ন page প্রতিনিধিত্ব করে। অন্য কথায়, এই `logVisit` call `url` এর সাপেক্ষে reactive *হওয়া উচিত*। এই কারণে, এই ক্ষেত্রে, dependency linter অনুসরণ করা এবং `url` কে একটি dependency হিসাবে যোগ করা বোধগম্য:
 
 ```js {4}
 function Page({ url }) {
   useEffect(() => {
     logVisit(url);
-  }, [url]); // ✅ All dependencies declared
+  }, [url]); // ✅ সমস্ত dependency ডিক্লেয়ার করা হয়েছে
   // ...
 }
 ```
 
-Now let's say you want to include the number of items in the shopping cart together with every page visit:
+এখন ধরুন আপনি প্রতিটি page visit এর সাথে shopping cart এ item এর সংখ্যা অন্তর্ভুক্ত করতে চান:
+
 
 ```js {2-3,6}
 function Page({ url }) {
@@ -633,9 +639,9 @@ function Page({ url }) {
 }
 ```
 
-You used `numberOfItems` inside the Effect, so the linter asks you to add it as a dependency. However, you *don't* want the `logVisit` call to be reactive with respect to `numberOfItems`. If the user puts something into the shopping cart, and the `numberOfItems` changes, this *does not mean* that the user visited the page again. In other words, *visiting the page* is, in some sense, an "event". It happens at a precise moment in time.
+আপনি Effect এর ভিতরে `numberOfItems` ব্যবহার করেছেন, তাই linter আপনাকে এটি একটি dependency হিসাবে যোগ করতে বলে। তবে, আপনি *চান না* যে `logVisit` call `numberOfItems` এর সাপেক্ষে reactive হোক। যদি ব্যবহারকারী shopping cart এ কিছু রাখে, এবং `numberOfItems` পরিবর্তিত হয়, এর *মানে এই নয়* যে ব্যবহারকারী আবার page টি visit করেছে। অন্য কথায়, *page visit করা* হল, কিছু অর্থে, একটি "event"। এটি সময়ের একটি সুনির্দিষ্ট মুহূর্তে ঘটে।
 
-Split the code in two parts:
+কোডটি দুটি অংশে বিভক্ত করুন:
 
 ```js {5-7,10}
 function Page({ url }) {
@@ -648,20 +654,20 @@ function Page({ url }) {
 
   useEffect(() => {
     onVisit(url);
-  }, [url]); // ✅ All dependencies declared
+  }, [url]); // ✅ সমস্ত dependency ডিক্লেয়ার করা হয়েছে
   // ...
 }
 ```
 
-Here, `onVisit` is an Effect Event. The code inside it isn't reactive. This is why you can use `numberOfItems` (or any other reactive value!) without worrying that it will cause the surrounding code to re-execute on changes.
+এখানে, `onVisit` একটি Effect Event। এর ভিতরের কোড reactive নয়। এই কারণেই আপনি `numberOfItems` (বা অন্য কোনো reactive value!) ব্যবহার করতে পারেন চিন্তা না করে যে এটি পরিবর্তনের সময় আশেপাশের কোড পুনরায় execute হবে।
 
-On the other hand, the Effect itself remains reactive. Code inside the Effect uses the `url` prop, so the Effect will re-run after every re-render with a different `url`. This, in turn, will call the `onVisit` Effect Event.
+অন্যদিকে, Effect নিজেই reactive থাকে। Effect এর ভিতরের কোড `url` prop ব্যবহার করে, তাই Effect প্রতিটি re-render এর পরে একটি ভিন্ন `url` দিয়ে পুনরায় চালু হবে। এটি, পরিবর্তে, `onVisit` Effect Event কল করবে।
 
-As a result, you will call `logVisit` for every change to the `url`, and always read the latest `numberOfItems`. However, if `numberOfItems` changes on its own, this will not cause any of the code to re-run.
+ফলস্বরূপ, আপনি `url` এর প্রতিটি পরিবর্তনের জন্য `logVisit` কল করবেন, এবং সর্বদা সর্বশেষ `numberOfItems` পড়বেন। তবে, যদি `numberOfItems` নিজে থেকে পরিবর্তিত হয়, এটি কোনো কোড পুনরায় চালু করবে না।
 
 <Note>
 
-You might be wondering if you could call `onVisit()` with no arguments, and read the `url` inside it:
+আপনি হয়তো ভাবছেন আপনি কি কোনো argument ছাড়াই `onVisit()` কল করতে পারেন, এবং এর ভিতরে `url` পড়তে পারেন:
 
 ```js {2,6}
   const onVisit = useEffectEvent(() => {
@@ -673,7 +679,7 @@ You might be wondering if you could call `onVisit()` with no arguments, and read
   }, [url]);
 ```
 
-This would work, but it's better to pass this `url` to the Effect Event explicitly. **By passing `url` as an argument to your Effect Event, you are saying that visiting a page with a different `url` constitutes a separate "event" from the user's perspective.** The `visitedUrl` is a *part* of the "event" that happened:
+এটি কাজ করবে, কিন্তু এই `url` টি আপনার Effect Event এ স্পষ্টভাবে pass করা ভালো। **আপনার Effect Event এ argument হিসাবে `url` pass করে, আপনি বলছেন যে একটি ভিন্ন `url` দিয়ে একটি page visit করা ব্যবহারকারীর দৃষ্টিকোণ থেকে একটি পৃথক "event" গঠন করে।** `visitedUrl` হল ঘটে যাওয়া "event" এর একটি *অংশ*:
 
 ```js {1-2,6}
   const onVisit = useEffectEvent(visitedUrl => {
@@ -685,9 +691,9 @@ This would work, but it's better to pass this `url` to the Effect Event explicit
   }, [url]);
 ```
 
-Since your Effect Event explicitly "asks" for the `visitedUrl`, now you can't accidentally remove `url` from the Effect's dependencies. If you remove the `url` dependency (causing distinct page visits to be counted as one), the linter will warn you about it. You want `onVisit` to be reactive with regards to the `url`, so instead of reading the `url` inside (where it wouldn't be reactive), you pass it *from* your Effect.
+যেহেতু আপনার Effect Event স্পষ্টভাবে `visitedUrl` এর জন্য "জিজ্ঞাসা" করে, এখন আপনি ভুলবশত Effect এর dependency থেকে `url` সরাতে পারবেন না। যদি আপনি `url` dependency সরান (distinct page visit কে একটি হিসাবে গণনা করা হয়), linter আপনাকে এটি সম্পর্কে সতর্ক করবে। আপনি চান `onVisit` `url` এর সাপেক্ষে reactive হোক, তাই এর ভিতরে `url` পড়ার পরিবর্তে (যেখানে এটি reactive হবে না), আপনি এটি আপনার Effect *থেকে* pass করেন।
 
-This becomes especially important if there is some asynchronous logic inside the Effect:
+এটি বিশেষভাবে গুরুত্বপূর্ণ হয়ে ওঠে যদি Effect এর ভিতরে কিছু asynchronous logic থাকে:
 
 ```js {6,8}
   const onVisit = useEffectEvent(visitedUrl => {
@@ -697,19 +703,19 @@ This becomes especially important if there is some asynchronous logic inside the
   useEffect(() => {
     setTimeout(() => {
       onVisit(url);
-    }, 5000); // Delay logging visits
+    }, 5000); // visit log করা delay করুন
   }, [url]);
 ```
 
-Here, `url` inside `onVisit` corresponds to the *latest* `url` (which could have already changed), but `visitedUrl` corresponds to the `url` that originally caused this Effect (and this `onVisit` call) to run.
+এখানে, `onVisit` এর ভিতরে `url` *সর্বশেষ* `url` এর সাথে মিলে যায় (যা ইতিমধ্যে পরিবর্তিত হতে পারে), কিন্তু `visitedUrl` সেই `url` এর সাথে মিলে যায় যা মূলত এই Effect (এবং এই `onVisit` call) চালু করেছিল।
 
 </Note>
 
 <DeepDive>
 
-#### Is it okay to suppress the dependency linter instead? {/*is-it-okay-to-suppress-the-dependency-linter-instead*/}
+#### পরিবর্তে dependency linter suppress করা কি ঠিক? {/*is-it-okay-to-suppress-the-dependency-linter-instead*/}
 
-In the existing codebases, you may sometimes see the lint rule suppressed like this:
+বিদ্যমান codebase গুলিতে, আপনি কখনও কখনও এইভাবে lint rule suppress করা দেখতে পারেন:
 
 ```js {7-9}
 function Page({ url }) {
@@ -718,20 +724,21 @@ function Page({ url }) {
 
   useEffect(() => {
     logVisit(url, numberOfItems);
-    // 🔴 Avoid suppressing the linter like this:
+    // 🔴 এইভাবে linter suppress করা এড়িয়ে চলুন:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
   // ...
 }
 ```
 
-After `useEffectEvent` becomes a stable part of React, we recommend **never suppressing the linter**.
+`useEffectEvent` React এর একটি stable অংশ হয়ে গেলে, আমরা সুপারিশ করি **কখনও linter suppress করবেন না**।
 
-The first downside of suppressing the rule is that React will no longer warn you when your Effect needs to "react" to a new reactive dependency you've introduced to your code. In the earlier example, you added `url` to the dependencies *because* React reminded you to do it. You will no longer get such reminders for any future edits to that Effect if you disable the linter. This leads to bugs.
+Rule suppress করার প্রথম অসুবিধা হল যে React আর আপনাকে সতর্ক করবে না যখন আপনার Effect কে একটি নতুন reactive dependency এর প্রতি "react" করতে হবে যা আপনি আপনার কোডে introduce করেছেন। আগের উদাহরণে, আপনি dependency তে `url` যোগ করেছিলেন *কারণ* React আপনাকে এটি করতে মনে করিয়ে দিয়েছিল। আপনি linter disable করলে সেই Effect এ ভবিষ্যতের কোনো edit এর জন্য আর এই ধরনের reminder পাবেন না। এটি bug এর দিকে নিয়ে যায়।
 
-Here is an example of a confusing bug caused by suppressing the linter. In this example, the `handleMove` function is supposed to read the current `canMove` state variable value in order to decide whether the dot should follow the cursor. However, `canMove` is always `true` inside `handleMove`.
+এখানে linter suppress করার কারণে সৃষ্ট একটি বিভ্রান্তিকর bug এর উদাহরণ। এই উদাহরণে, `handleMove` function টি বর্তমান `canMove` state variable মান পড়ার কথা যাতে dot cursor অনুসরণ করবে কিনা তা সিদ্ধান্ত নিতে পারে। তবে, `handleMove` এর ভিতরে `canMove` সর্বদা `true`।
 
-Can you see why?
+আপনি কি দেখতে পাচ্ছেন কেন?
+
 
 <Sandpack>
 
@@ -789,14 +796,13 @@ body {
 
 </Sandpack>
 
+এই কোডের সমস্যা হল dependency linter suppress করা। যদি আপনি suppression সরান, আপনি দেখবেন যে এই Effect `handleMove` function এর উপর নির্ভর করা উচিত। এটি বোধগম্য: `handleMove` component body এর ভিতরে ডিক্লেয়ার করা হয়েছে, যা এটিকে একটি reactive value করে তোলে। প্রতিটি reactive value অবশ্যই একটি dependency হিসাবে নির্দিষ্ট করতে হবে, অথবা এটি সময়ের সাথে সাথে stale হতে পারে!
 
-The problem with this code is in suppressing the dependency linter. If you remove the suppression, you'll see that this Effect should depend on the `handleMove` function. This makes sense: `handleMove` is declared inside the component body, which makes it a reactive value. Every reactive value must be specified as a dependency, or it can potentially get stale over time!
+মূল কোডের লেখক React কে "মিথ্যা বলেছেন" যে Effect কোনো reactive value এর উপর নির্ভর করে না (`[]`)। এই কারণেই React `canMove` পরিবর্তিত হওয়ার পরে (এবং এর সাথে `handleMove`) Effect পুনরায় সিঙ্ক্রোনাইজ করেনি। কারণ React Effect পুনরায় সিঙ্ক্রোনাইজ করেনি, listener হিসাবে attached `handleMove` হল initial render এর সময় তৈরি `handleMove` function। Initial render এর সময়, `canMove` ছিল `true`, যে কারণে initial render থেকে `handleMove` চিরকাল সেই মান দেখবে।
 
-The author of the original code has "lied" to React by saying that the Effect does not depend (`[]`) on any reactive values. This is why React did not re-synchronize the Effect after `canMove` has changed (and `handleMove` with it). Because React did not re-synchronize the Effect, the `handleMove` attached as a listener is the `handleMove` function created during the initial render. During the initial render, `canMove` was `true`, which is why `handleMove` from the initial render will forever see that value.
+**যদি আপনি কখনও linter suppress না করেন, আপনি কখনও stale value এর সমস্যা দেখবেন না।**
 
-**If you never suppress the linter, you will never see problems with stale values.**
-
-With `useEffectEvent`, there is no need to "lie" to the linter, and the code works as you would expect:
+`useEffectEvent` এর সাথে, linter কে "মিথ্যা বলার" প্রয়োজন নেই, এবং কোডটি আপনার প্রত্যাশা অনুযায়ী কাজ করে:
 
 <Sandpack>
 
@@ -870,26 +876,26 @@ body {
 
 </Sandpack>
 
-This doesn't mean that `useEffectEvent` is *always* the correct solution. You should only apply it to the lines of code that you don't want to be reactive. In the above sandbox, you didn't want the Effect's code to be reactive with regards to `canMove`. That's why it made sense to extract an Effect Event.
+এর মানে এই নয় যে `useEffectEvent` *সর্বদা* সঠিক সমাধান। আপনার শুধুমাত্র সেই কোডের লাইনগুলিতে এটি প্রয়োগ করা উচিত যা আপনি reactive হতে চান না। উপরের sandbox এ, আপনি চাননি যে Effect এর কোড `canMove` এর সাপেক্ষে reactive হোক।
 
-Read [Removing Effect Dependencies](/learn/removing-effect-dependencies) for other correct alternatives to suppressing the linter.
+[Effect Dependency সরানো](/learn/removing-effect-dependencies) পড়ুন linter suppress করার অন্যান্য সঠিক বিকল্পের জন্য।
 
 </DeepDive>
 
-### Limitations of Effect Events {/*limitations-of-effect-events*/}
+### Effect Event এর সীমাবদ্ধতা {/*limitations-of-effect-events*/}
 
 <Wip>
 
-This section describes an **experimental API that has not yet been released** in a stable version of React.
+এই অনুচ্ছেদটি একটি **experimental API বর্ণনা করে যা এখনও React এর একটি stable version এ release হয়নি।**
 
 </Wip>
 
-Effect Events are very limited in how you can use them:
+Effect Event আপনি কিভাবে ব্যবহার করতে পারেন তাতে খুবই সীমিত:
 
-* **Only call them from inside Effects.**
-* **Never pass them to other components or Hooks.**
+* **শুধুমাত্র Effect এর ভিতর থেকে তাদের কল করুন।**
+* **কখনও তাদের অন্য কম্পোনেন্ট বা Hook এ pass করবেন না।**
 
-For example, don't declare and pass an Effect Event like this:
+উদাহরণস্বরূপ, এইভাবে একটি Effect Event ডিক্লেয়ার এবং pass করবেন না:
 
 ```js {4-6,8}
 function Timer() {
@@ -899,7 +905,7 @@ function Timer() {
     setCount(count + 1);
   });
 
-  useTimer(onTick, 1000); // 🔴 Avoid: Passing Effect Events
+  useTimer(onTick, 1000); // 🔴 এড়িয়ে চলুন: Effect Event pass করা
 
   return <h1>{count}</h1>
 }
@@ -912,11 +918,12 @@ function useTimer(callback, delay) {
     return () => {
       clearInterval(id);
     };
-  }, [delay, callback]); // Need to specify "callback" in dependencies
+  }, [delay, callback]); // dependency তে "callback" নির্দিষ্ট করতে হবে
 }
 ```
 
-Instead, always declare Effect Events directly next to the Effects that use them:
+পরিবর্তে, সর্বদা Effect Event সরাসরি সেই Effect এর পাশে ডিক্লেয়ার করুন যা তাদের ব্যবহার করে:
+
 
 ```js {10-12,16,21}
 function Timer() {
@@ -934,40 +941,40 @@ function useTimer(callback, delay) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      onTick(); // ✅ Good: Only called locally inside an Effect
+      onTick(); // ✅ ভালো: শুধুমাত্র একটি Effect এর ভিতরে locally কল করা হয়
     }, delay);
     return () => {
       clearInterval(id);
     };
-  }, [delay]); // No need to specify "onTick" (an Effect Event) as a dependency
+  }, [delay]); // "onTick" (একটি Effect Event) কে dependency হিসাবে নির্দিষ্ট করার প্রয়োজন নেই
 }
 ```
 
-Effect Events are non-reactive "pieces" of your Effect code. They should be next to the Effect using them.
+Effect Event হল আপনার Effect কোডের non-reactive "pieces"। তাদের সেই Effect এর পাশে থাকা উচিত যা তাদের ব্যবহার করে।
 
 <Recap>
 
-- Event handlers run in response to specific interactions.
-- Effects run whenever synchronization is needed.
-- Logic inside event handlers is not reactive.
-- Logic inside Effects is reactive.
-- You can move non-reactive logic from Effects into Effect Events.
-- Only call Effect Events from inside Effects.
-- Don't pass Effect Events to other components or Hooks.
+- Event handler নির্দিষ্ট interaction এর প্রতিক্রিয়ায় চালু হয়।
+- Effect যখনই synchronization প্রয়োজন তখন চালু হয়।
+- Event handler এর ভিতরের logic reactive নয়।
+- Effect এর ভিতরের logic reactive।
+- আপনি Effect থেকে non-reactive logic Effect Event এ সরাতে পারেন।
+- শুধুমাত্র Effect এর ভিতর থেকে Effect Event কল করুন।
+- Effect Event অন্য কম্পোনেন্ট বা Hook এ pass করবেন না।
 
 </Recap>
 
 <Challenges>
 
-#### Fix a variable that doesn't update {/*fix-a-variable-that-doesnt-update*/}
+#### একটি variable ঠিক করুন যা update হচ্ছে না {/*fix-a-variable-that-doesnt-update*/}
 
-This `Timer` component keeps a `count` state variable which increases every second. The value by which it's increasing is stored in the `increment` state variable. You can control the `increment` variable with the plus and minus buttons.
+এই `Timer` কম্পোনেন্ট একটি `count` state variable রাখে যা প্রতি সেকেন্ডে বৃদ্ধি পায়। যে মান দ্বারা এটি বৃদ্ধি পাচ্ছে তা `increment` state variable এ সংরক্ষিত। আপনি plus এবং minus button দিয়ে `increment` variable নিয়ন্ত্রণ করতে পারেন।
 
-However, no matter how many times you click the plus button, the counter is still incremented by one every second. What's wrong with this code? Why is `increment` always equal to `1` inside the Effect's code? Find the mistake and fix it.
+তবে, আপনি যতবারই plus button ক্লিক করুন না কেন, counter এখনও প্রতি সেকেন্ডে এক করে বৃদ্ধি পাচ্ছে। এই কোডের সাথে কি সমস্যা? কেন Effect এর কোডের ভিতরে `increment` সর্বদা `1` এর সমান? ভুলটি খুঁজুন এবং ঠিক করুন।
 
 <Hint>
 
-To fix this code, it's enough to follow the rules.
+এই কোড ঠিক করতে, নিয়ম অনুসরণ করাই যথেষ্ট।
 
 </Hint>
 
@@ -1037,9 +1044,9 @@ button { margin: 10px; }
 
 <Solution>
 
-As usual, when you're looking for bugs in Effects, start by searching for linter suppressions.
+যথারীতি, যখন আপনি Effect এ bug খুঁজছেন, linter suppression খোঁজা দিয়ে শুরু করুন।
 
-If you remove the suppression comment, React will tell you that this Effect's code depends on `increment`, but you "lied" to React by claiming that this Effect does not depend on any reactive values (`[]`). Add `increment` to the dependency array:
+যদি আপনি suppression comment সরান, React আপনাকে বলবে যে এই Effect এর কোড `increment` এর উপর নির্ভর করে, কিন্তু আপনি React কে "মিথ্যা বলেছেন" যে এই Effect কোনো reactive value এর উপর নির্ভর করে না (`[]`)। dependency array তে `increment` যোগ করুন:
 
 <Sandpack>
 
@@ -1103,19 +1110,19 @@ button { margin: 10px; }
 
 </Sandpack>
 
-Now, when `increment` changes, React will re-synchronize your Effect, which will restart the interval.
+এখন, যখন `increment` পরিবর্তিত হয়, React আপনার Effect পুনরায় সিঙ্ক্রোনাইজ করবে, যা interval restart করবে।
 
 </Solution>
 
-#### Fix a freezing counter {/*fix-a-freezing-counter*/}
+#### একটি freezing counter ঠিক করুন {/*fix-a-freezing-counter*/}
 
-This `Timer` component keeps a `count` state variable which increases every second. The value by which it's increasing is stored in the `increment` state variable, which you can control it with the plus and minus buttons. For example, try pressing the plus button nine times, and notice that the `count` now increases each second by ten rather than by one.
+এই `Timer` কম্পোনেন্ট একটি `count` state variable রাখে যা প্রতি সেকেন্ডে বৃদ্ধি পায়। যে মান দ্বারা এটি বৃদ্ধি পাচ্ছে তা `increment` state variable এ সংরক্ষিত, যা আপনি plus এবং minus button দিয়ে নিয়ন্ত্রণ করতে পারেন। উদাহরণস্বরূপ, plus button নয়বার চাপার চেষ্টা করুন, এবং লক্ষ্য করুন যে `count` এখন প্রতি সেকেন্ডে এক এর পরিবর্তে দশ করে বৃদ্ধি পাচ্ছে।
 
-There is a small issue with this user interface. You might notice that if you keep pressing the plus or minus buttons faster than once per second, the timer itself seems to pause. It only resumes after a second passes since the last time you've pressed either button. Find why this is happening, and fix the issue so that the timer ticks on *every* second without interruptions.
+এই user interface এর সাথে একটি ছোট সমস্যা আছে। আপনি হয়তো লক্ষ্য করবেন যে আপনি যদি প্রতি সেকেন্ডে একবারের চেয়ে দ্রুত plus বা minus button চাপতে থাকেন, timer নিজেই pause হয়ে যাচ্ছে বলে মনে হয়। এটি শুধুমাত্র আপনি শেষবার যেকোনো button চাপার এক সেকেন্ড পরে resume হয়। কেন এটি ঘটছে তা খুঁজে বের করুন, এবং সমস্যাটি ঠিক করুন যাতে timer *প্রতি* সেকেন্ডে বিরতি ছাড়াই tick করে।
 
 <Hint>
 
-It seems like the Effect which sets up the timer "reacts" to the `increment` value. Does the line that uses the current `increment` value in order to call `setCount` really need to be reactive?
+মনে হচ্ছে যে Effect যা timer সেট আপ করে তা `increment` value এর প্রতি "react" করে। বর্তমান `increment` value ব্যবহার করে `setCount` কল করার লাইনটি কি সত্যিই reactive হওয়া প্রয়োজন?
 
 </Hint>
 
@@ -1184,9 +1191,9 @@ button { margin: 10px; }
 
 <Solution>
 
-The issue is that the code inside the Effect uses the `increment` state variable. Since it's a dependency of your Effect, every change to `increment` causes the Effect to re-synchronize, which causes the interval to clear. If you keep clearing the interval every time before it has a chance to fire, it will appear as if the timer has stalled.
+সমস্যা হল যে Effect এর ভিতরের কোড `increment` state variable ব্যবহার করে। যেহেতু এটি আপনার Effect এর একটি dependency, `increment` এর প্রতিটি পরিবর্তন Effect কে পুনরায় সিঙ্ক্রোনাইজ করে, যা interval clear করে। যদি আপনি প্রতিবার fire হওয়ার সুযোগ পাওয়ার আগে interval clear করতে থাকেন, তাহলে মনে হবে যেন timer stall হয়ে গেছে।
 
-To solve the issue, extract an `onTick` Effect Event from the Effect:
+সমস্যা সমাধান করতে, Effect থেকে একটি `onTick` Effect Event extract করুন:
 
 <Sandpack>
 
@@ -1256,17 +1263,17 @@ button { margin: 10px; }
 
 </Sandpack>
 
-Since `onTick` is an Effect Event, the code inside it isn't reactive. The change to `increment` does not trigger any Effects.
+যেহেতু `onTick` একটি Effect Event, এর ভিতরের কোড reactive নয়। `increment` এর পরিবর্তন কোনো Effect trigger করে না।
 
 </Solution>
 
-#### Fix a non-adjustable delay {/*fix-a-non-adjustable-delay*/}
+#### একটি non-adjustable delay ঠিক করুন {/*fix-a-non-adjustable-delay*/}
 
-In this example, you can customize the interval delay. It's stored in a `delay` state variable which is updated by two buttons. However, even if you press the "plus 100 ms" button until the `delay` is 1000 milliseconds (that is, a second), you'll notice that the timer still increments very fast (every 100 ms). It's as if your changes to the `delay` are ignored. Find and fix the bug.
+এই উদাহরণে, আপনি interval delay customize করতে পারেন। এটি একটি `delay` state variable এ সংরক্ষিত যা দুটি button দ্বারা update করা হয়। তবে, এমনকি আপনি "plus 100 ms" button চাপতে থাকলেও যতক্ষণ না `delay` 1000 milliseconds (অর্থাৎ, এক সেকেন্ড) হয়, আপনি লক্ষ্য করবেন যে timer এখনও খুব দ্রুত (প্রতি 100 ms) বৃদ্ধি পাচ্ছে। মনে হচ্ছে আপনার `delay` এর পরিবর্তনগুলি উপেক্ষা করা হচ্ছে। bug খুঁজুন এবং ঠিক করুন।
 
 <Hint>
 
-Code inside Effect Events is not reactive. Are there cases in which you would _want_ the `setInterval` call to re-run?
+Effect Event এর ভিতরের কোড reactive নয়। এমন কি কোনো ক্ষেত্রে আছে যেখানে আপনি `setInterval` call পুনরায় চালু _চাইবেন_?
 
 </Hint>
 
@@ -1355,7 +1362,7 @@ button { margin: 10px; }
 
 <Solution>
 
-The problem with the above example is that it extracted an Effect Event called `onMount` without considering what the code should actually be doing. You should only extract Effect Events for a specific reason: when you want to make a part of your code non-reactive. However, the `setInterval` call *should* be reactive with respect to the `delay` state variable. If the `delay` changes, you want to set up the interval from scratch! To fix this code, pull all the reactive code back inside the Effect:
+উপরের উদাহরণের সমস্যা হল যে এটি `onMount` নামে একটি Effect Event extract করেছে কোডটি আসলে কি করা উচিত তা বিবেচনা না করে। আপনার শুধুমাত্র একটি নির্দিষ্ট কারণে Effect Event extract করা উচিত: যখন আপনি আপনার কোডের একটি অংশ non-reactive করতে চান। তবে, `setInterval` call `delay` state variable এর সাপেক্ষে reactive *হওয়া উচিত*। যদি `delay` পরিবর্তিত হয়, আপনি interval নতুন করে সেট আপ করতে চান! এই কোড ঠিক করতে, সমস্ত reactive কোড Effect এর ভিতরে ফিরিয়ে আনুন:
 
 <Sandpack>
 
@@ -1435,21 +1442,21 @@ button { margin: 10px; }
 
 </Sandpack>
 
-In general, you should be suspicious of functions like `onMount` that focus on the *timing* rather than the *purpose* of a piece of code. It may feel "more descriptive" at first but it obscures your intent. As a rule of thumb, Effect Events should correspond to something that happens from the *user's* perspective. For example, `onMessage`, `onTick`, `onVisit`, or `onConnected` are good Effect Event names. Code inside them would likely not need to be reactive. On the other hand, `onMount`, `onUpdate`, `onUnmount`, or `onAfterRender` are so generic that it's easy to accidentally put code that *should* be reactive into them. This is why you should name your Effect Events after *what the user thinks has happened,* not when some code happened to run.
+সাধারণভাবে, আপনার `onMount` এর মতো function সম্পর্কে সন্দেহজনক হওয়া উচিত যা কোডের একটি অংশের *উদ্দেশ্য* এর পরিবর্তে *timing* এর উপর ফোকাস করে। এটি প্রথমে "আরও বর্ণনামূলক" মনে হতে পারে কিন্তু এটি আপনার intent অস্পষ্ট করে। একটি নিয়ম হিসাবে, Effect Event *ব্যবহারকারীর* দৃষ্টিকোণ থেকে যা ঘটে তার সাথে সম্পর্কিত হওয়া উচিত। উদাহরণস্বরূপ, `onMessage`, `onTick`, `onVisit`, বা `onConnected` ভালো Effect Event নাম। তাদের ভিতরের কোড সম্ভবত reactive হওয়ার প্রয়োজন হবে না। অন্যদিকে, `onMount`, `onUpdate`, `onUnmount`, বা `onAfterRender` এত generic যে ভুলবশত এমন কোড রাখা সহজ যা reactive *হওয়া উচিত*। এই কারণেই আপনার Effect Event এর নাম *ব্যবহারকারী কি মনে করে ঘটেছে* তার উপর ভিত্তি করে রাখা উচিত, কিছু কোড কখন চালু হয়েছিল তার উপর নয়।
 
 </Solution>
 
-#### Fix a delayed notification {/*fix-a-delayed-notification*/}
+#### একটি delayed notification ঠিক করুন {/*fix-a-delayed-notification*/}
 
-When you join a chat room, this component shows a notification. However, it doesn't show the notification immediately. Instead, the notification is artificially delayed by two seconds so that the user has a chance to look around the UI.
+যখন আপনি একটি chat room এ যোগ দেন, এই কম্পোনেন্ট একটি notification দেখায়। তবে, এটি notification অবিলম্বে দেখায় না। পরিবর্তে, notification কৃত্রিমভাবে দুই সেকেন্ড delay করা হয় যাতে ব্যবহারকারী UI এর চারপাশে তাকানোর সুযোগ পায়।
 
-This almost works, but there is a bug. Try changing the dropdown from "general" to "travel" and then to "music" very quickly. If you do it fast enough, you will see two notifications (as expected!) but they will *both* say "Welcome to music".
+এটি প্রায় কাজ করে, কিন্তু একটি bug আছে। dropdown "general" থেকে "travel" এবং তারপর "music" এ খুব দ্রুত পরিবর্তন করার চেষ্টা করুন। যদি আপনি এটি যথেষ্ট দ্রুত করেন, আপনি দুটি notification দেখবেন (প্রত্যাশিত!) কিন্তু তারা *উভয়ই* বলবে "Welcome to music"।
 
-Fix it so that when you switch from "general" to "travel" and then to "music" very quickly, you see two notifications, the first one being "Welcome to travel" and the second one being "Welcome to music". (For an additional challenge, assuming you've *already* made the notifications show the correct rooms, change the code so that only the latter notification is displayed.)
+এটি ঠিক করুন যাতে আপনি যখন "general" থেকে "travel" এবং তারপর "music" এ খুব দ্রুত switch করেন, আপনি দুটি notification দেখেন, প্রথমটি "Welcome to travel" এবং দ্বিতীয়টি "Welcome to music"। (একটি অতিরিক্ত challenge এর জন্য, ধরে নিচ্ছি আপনি *ইতিমধ্যে* notification গুলি সঠিক room দেখাতে তৈরি করেছেন, কোড পরিবর্তন করুন যাতে শুধুমাত্র পরবর্তী notification প্রদর্শিত হয়।)
 
 <Hint>
 
-Your Effect knows which room it connected to. Is there any information that you might want to pass to your Effect Event?
+আপনার Effect জানে এটি কোন room এ সংযুক্ত হয়েছিল। এমন কোনো তথ্য আছে যা আপনি আপনার Effect Event এ pass করতে চাইতে পারেন?
 
 </Hint>
 
@@ -1588,11 +1595,11 @@ label { display: block; margin-top: 10px; }
 
 <Solution>
 
-Inside your Effect Event, `roomId` is the value *at the time Effect Event was called.*
+আপনার Effect Event এর ভিতরে, `roomId` হল সেই মান *যখন Effect Event কল করা হয়েছিল।*
 
-Your Effect Event is called with a two second delay. If you're quickly switching from the travel to the music room, by the time the travel room's notification shows, `roomId` is already `"music"`. This is why both notifications say "Welcome to music".
+আপনার Effect Event দুই সেকেন্ড delay সহ কল করা হয়। যদি আপনি দ্রুত travel থেকে music room এ switch করছেন, যখন travel room এর notification দেখায়, `roomId` ইতিমধ্যে `"music"`। এই কারণেই উভয় notification "Welcome to music" বলে।
 
-To fix the issue, instead of reading the *latest* `roomId` inside the Effect Event, make it a parameter of your Effect Event, like `connectedRoomId` below. Then pass `roomId` from your Effect by calling `onConnected(roomId)`:
+সমস্যা ঠিক করতে, Effect Event এর ভিতরে *সর্বশেষ* `roomId` পড়ার পরিবর্তে, এটিকে আপনার Effect Event এর একটি parameter করুন, যেমন নিচে `connectedRoomId`। তারপর `onConnected(roomId)` কল করে আপনার Effect থেকে `roomId` pass করুন:
 
 <Sandpack>
 
@@ -1727,9 +1734,9 @@ label { display: block; margin-top: 10px; }
 
 </Sandpack>
 
-The Effect that had `roomId` set to `"travel"` (so it connected to the `"travel"` room) will show the notification for `"travel"`. The Effect that had `roomId` set to `"music"` (so it connected to the `"music"` room) will show the notification for `"music"`. In other words, `connectedRoomId` comes from your Effect (which is reactive), while `theme` always uses the latest value.
+যে Effect এ `roomId` `"travel"` এ set ছিল (তাই এটি `"travel"` room এ সংযুক্ত হয়েছিল) সেটি `"travel"` এর জন্য notification দেখাবে। যে Effect এ `roomId` `"music"` এ set ছিল (তাই এটি `"music"` room এ সংযুক্ত হয়েছিল) সেটি `"music"` এর জন্য notification দেখাবে। অন্য কথায়, `connectedRoomId` আপনার Effect থেকে আসে (যা reactive), যেখানে `theme` সর্বদা সর্বশেষ মান ব্যবহার করে।
 
-To solve the additional challenge, save the notification timeout ID and clear it in the cleanup function of your Effect:
+অতিরিক্ত challenge সমাধান করতে, notification timeout ID সংরক্ষণ করুন এবং আপনার Effect এর cleanup function এ এটি clear করুন:
 
 <Sandpack>
 
@@ -1870,7 +1877,7 @@ label { display: block; margin-top: 10px; }
 
 </Sandpack>
 
-This ensures that already scheduled (but not yet displayed) notifications get cancelled when you change rooms.
+এটি নিশ্চিত করে যে ইতিমধ্যে scheduled (কিন্তু এখনও প্রদর্শিত হয়নি) notification গুলি আপনি room পরিবর্তন করলে cancel হয়ে যায়।
 
 </Solution>
 
